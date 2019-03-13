@@ -64,7 +64,7 @@ class CrawlRequestFulfilled
 
     protected function handleCrawled(ResponseInterface $response, CrawlUrl $crawlUrl)
     {
-        $this->crawler->getCrawlObservers()->crawled($crawlUrl, $response);
+        $this->crawler->getCrawlObservers()->crawled($crawlUrl, $response, $this->crawler->getBrowsershot());
     }
 
     protected function convertBodyToString(StreamInterface $bodyStream, $readMaximumBytes = 1024 * 1024 * 2): string

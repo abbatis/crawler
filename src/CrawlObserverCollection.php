@@ -6,6 +6,7 @@ use Iterator;
 use ArrayAccess;
 use Psr\Http\Message\ResponseInterface;
 use GuzzleHttp\Exception\RequestException;
+use Spatie\Browsershot\Browsershot;
 
 class CrawlObserverCollection implements ArrayAccess, Iterator
 {
@@ -27,9 +28,10 @@ class CrawlObserverCollection implements ArrayAccess, Iterator
         $this->observers[] = $observer;
     }
 
-    public function crawled(CrawlUrl $crawlUrl, ResponseInterface $response)
+    public function crawled(CrawlUrl $crawlUrl, ResponseInterface $response, Browsershot $browsershot)
     {
         foreach ($this->observers as $crawlObserver) {
+            $crawlObserver->setBrowsershot($browsershot);
             $crawlObserver->crawled(
                 $crawlUrl->url,
                 $response,

@@ -3,6 +3,8 @@
 namespace Spatie\Crawler;
 
 use Generator;
+use Illuminate\Support\Facades\Log;
+use Symfony\Component\Process\Exception\ProcessFailedException;
 use Tree\Node\Node;
 use GuzzleHttp\Pool;
 use GuzzleHttp\Client;
@@ -81,6 +83,11 @@ class Crawler
         RequestOptions::TIMEOUT => 10,
         RequestOptions::ALLOW_REDIRECTS => false,
     ];
+
+    /**
+     * @var bool
+     */
+    protected $ignoreExceptions = true;
 
     public static function create(array $clientOptions = []): Crawler
     {
@@ -387,16 +394,26 @@ class Crawler
     protected function startCrawlingQueue()
     {
         while ($this->crawlQueue->hasPendingUrls()) {
-            $pool = new Pool($this->client, $this->getCrawlRequests(), [
-                'concurrency' => $this->concurrency,
-                'options' => $this->client->getConfig(),
-                'fulfilled' => new $this->crawlRequestFulfilledClass($this),
-                'rejected' => new $this->crawlRequestFailedClass($this),
-            ]);
+            try {
+                $pool = new Pool($this->client, $this->getCrawlRequests(), [
+                    'concurrency' => $this->concurrency,
+                    'options' => $this->client->getConfig(),
+                    'fulfilled' => new $this->crawlRequestFulfilledClass($this),
+                    'rejected' => new $this->crawlRequestFailedClass($this),
+                ]);
 
-            $promise = $pool->promise();
+                $promise = $pool->promise();
 
-            $promise->wait();
+                $promise->wait();
+            } catch (ProcessFailedException $e) {
+                if (!$this->ignoreExceptions) {
+                    throw $e;
+                }
+
+                Log::error($e->getMessage());
+
+                continue;
+            }
         }
     }
 
@@ -417,6 +434,10 @@ class Crawler
     protected function getCrawlRequests(): Generator
     {
         while ($crawlUrl = $this->crawlQueue->getFirstPendingUrl()) {
+            foreach ($this->crawlObservers as $crawlObserver) {
+                $crawlObserver->setCrawlQueue($this->getCrawlQueue());
+            }
+
             if (! $this->crawlProfile->shouldCrawl($crawlUrl->url)) {
                 $this->crawlQueue->markAsProcessed($crawlUrl);
                 continue;
